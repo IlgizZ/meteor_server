@@ -54,17 +54,16 @@ exports.checkOrder = functions.https.onRequest((request, response) => {
     return;
   }
 
-  var checkedPrice = checkProducts(products)
-
-  if (checkedPrice == totalPrice && checkGifts(choosenGifts, totalPrice)) {
-
-  } else {
-    var error = {error: "invalid data!"};
-    response.status(505).send(error);
-    return;
-  }
-
-  response.status(200).send("\n Allright! Order is valid!");
+  checkProducts(products).then(checkedPrice =>{
+    if (checkedPrice > 0 && checkedPrice == totalPrice) {
+      checkGifts(choosenGifts, totalPrice);
+      response.status(200).send("\n Allright! Order is valid!");
+    } else {
+      var error = {error: "invalid data!"};
+      response.status(505).send(error);
+      return;
+    }
+  });
 });
 
 function checkTime() {
@@ -78,7 +77,6 @@ function checkTime() {
 function isEmpty(obj) {
   return Object.keys(obj).length === 0 && obj.constructor === Object
 }
-
 
 function checkProducts(products) {
   const productsToFetch = products.map(p => return p.product_id);
@@ -98,19 +96,47 @@ function checkProducts(products) {
 
         var product = products[index];
         var productPrice = 0;
-        var infoFirebase = {name: p.name, decription: p.description, img: p.description}
-        var info = {name: product.name, decription: product.description, img: product.description}
+        var infoFirebase = {"name": p.name, "decription": p.description, "img": p.description}
+        var info = {"name": product.name, "decription": product.description, "img": product.description}
 
         if (info != infoFirebase) {
           equal = false;
           return;
         }
         //check toppings
+        if (product.toppins) {
+          var productToppings = product.toppings;
+
+          var firebaseToppings = Object.keys(p.toppings).map(key => {
+            var topping = p.toppings[key];
+            topping["topping_id"] = key;
+            return topping
+          })
+
+          productToppings.map(t => {
+            if (!equal)
+              return
+
+            var topping = {"img": t.img, "name": t.name, "price": t.price, "weigth": t.weigth, "topping_id": t.topping_id};
+            equal = false;
+
+            firebaseToppings.map(firebaseTopping => {
+              if (firebaseTopping == topping) {
+                equal = true;
+                productPrice += t.ptice * t.quantity;
+              }
+            })
+          })
+
+          if(!equal)
+            return
+        }
+
         if (p.sizes) {
           equal = false;
 
           const sizes = p.sizes.map(size => {
-            var s = {price: product.price, radius: product.radius, weigth: product.weight}
+            var s = {"price": product.price, "radius": product.radius, "weigth": product.weight}
 
             if (size == s) {
               equal = true;
@@ -127,11 +153,21 @@ function checkProducts(products) {
           equal = p.weight == product.weight;
           productPrice += p.price;
         }
+
+        if(!equal)
+          return
+
+        totalPrice += productPrice * product.quantity;
       })
 
+      if (!equal)
+        return -1;
+
+      return totalPrice;
     })
     .catch(err => {
-      // handle error
+      console.log(err);
+      return -1;
     })
 }
 
