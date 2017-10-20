@@ -2,53 +2,62 @@ var signUp = function(router, firebase){
 
   router.post('/newReferral', function(req, res, next) {
     var firebase = req.app.get('firebase');
+    const key = req.body.key;
+    const parent = req.body.parent;
+    var grany = null;
+    const userRef = firebase.database().ref('/users/');
 
-    firebase.database().ref().child('users_count').once('value', snapshot => {
+    return firebase.database().ref().child('users_count').once('value', snapshot => {
       var Hashids = require('hashids');
       var hashids = new Hashids("Meteor", 6);
 
-      var referalCode = hashids.encode(snapshot.val());
-
-      const key = req.body.key;
-      const parent = req.body.parent;
-
-      const userRef = firebase.database().ref('/users/');
-
+      return hashids.encode(snapshot.val());
+    })
+    .then((referalCode) => {
       if (!parent) {
-        userRef.child(key).update({
-          referalCode
-        });
+        return  userRef.child(key).update({ referalCode, meteors: 0 });
       } else {
-        userRef.child(key).update({
+        return userRef.child(key).update({
           parent_referal: parent,
+          meteors: 1000,
           referalCode
-        });
+        })
+        .then(() => {
+          userRef.orderByChild("referalCode").equalTo(parent).once('value', snapshot => {
+            var value = snapshot.val();
+            parent_key = Object.keys(value)[0];
+            grany = value[parent_key].parent_referal;
+            snapshot.ref.child(parent_key).once('value', snapshot => {
+              var parentVal = snapshot.val();
+              var meteors = parentVal.meteors || 0;
+              meteors += 500;
 
-        userRef.orderByChild("referalCode").equalTo(parent).once('value', snapshot => {
-          var value = snapshot.val();
-          var parent_key = Object.keys(value)[0];
+              parentVal["meteors"] = meteors;
+              parentVal.child_referals[key] = {level: "1"};
+              return snapshot.ref.set(parentVal);
+            })
+            .then(() => {
+              if (grany)
+                return userRef.child(grany).once('value', snapshot => {
+                  child("child_referals").child(parent_key)
+                  var grany = snapshot.val();
+                  var brothers = grany.child_referals[parent_key].childs || [];
 
-          snapshot.ref.child(parent_key).child("child_referals").child(key).set({
-            level: "1"
+                  brothers.push(key);
+                  grany.child_referals[parent_key].childs = brothers;
+                  grany.child_referals[parent_key].level = 1;
+
+                  var meteors = grany.meteors || 0;
+                  meteors += 250;
+                  grany["meteors"] = meteors;
+
+                  return snapshot.ref.set(grany);
+                });
+            })
           })
-          var grany = value[parent_key].parent_referal;
-
-          if (grany)
-            userRef.child(grany).child("child_referals").child(parent_key).once('value', snapshot => {
-              var brothers = snapshot.val().childs;
-              if (!brothers)
-                brothers = []
-
-              brothers.push(key);
-
-              snapshot.ref.set({
-                childs: brothers,
-                level: 1
-              })
-            });
-        });
+        })
       }
-    });
+    })
   });
 }
 

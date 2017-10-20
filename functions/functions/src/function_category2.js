@@ -1,8 +1,6 @@
 var functions = require('firebase-functions');
 const admin = require('firebase-admin');
 
-var defaultApp = admin.initializeApp(functions.config().firebase)
-
 const db = admin.database();
 
 module.exports = function (e) {
