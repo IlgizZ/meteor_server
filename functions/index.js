@@ -13,6 +13,8 @@ var defaultApp = admin.initializeApp(functions.config().firebase);
 const dbRef = admin.database().ref();
 
 require('./functions/src/function_category2.js')(exports);
+require('./functions/src/payments.js')(exports);
+require('./functions/src/auth.js')(exports);
 
 exports.helloWorld = functions.https.onRequest((request, response) => {
   const method = request.method;
