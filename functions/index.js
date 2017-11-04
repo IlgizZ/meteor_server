@@ -81,41 +81,48 @@ exports.checkOrder = functions.https.onRequest((request, response) => {
         console.log("Final total price is: " + checkedPrice);
         checkGifts(choosenGifts, totalPrice).then(equals => {
           if (equals) {
-            console.log("Creating order.");
-            var order = { products,
-              totalPrice,
-              choosenGifts,
-              paymentType,
-              customer
-            };
-
-            if (birthday)
-              order["birthday"] = birthday;
-
-            if (meteors > 0)
-              order["meteors"] = meteors;
-
-            makeOrder(order).then((key) => {
-              if (paymentType == "cash") {
-                response.status(200).send("\n Order created with key: " + key);
-                return;
+            checkUserMeteors().then(isMeteorsCorrectCount => {
+              if (!isMeteorsCorrectCount) {
+                console.log("invalid meteors count");
+                response.status(202).send(error);
+                return
               } else {
-                var transaction = {
-                  "price": totalPrice,
-                  "orderKey": key,
+                console.log("Creating order.");
+                var order = { products,
+                  totalPrice,
+                  choosenGifts,
+                  paymentType,
                   customer
-                }
-                doTransactions(transaction).then(() => {
-                  response.status(200).send({ "message" : "Sending to payment system transaction", transaction });
-                  return;
+                };
+
+                if (birthday)
+                  order["birthday"] = birthday;
+
+                if (meteors > 0)
+                  order["meteors"] = meteors;
+
+                makeOrder(order).then((key) => {
+                  if (paymentType == "cash") {
+                    response.status(200).send("\n Order created with key: " + key);
+                    return;
+                  } else {
+                    var transaction = {
+                      "price": totalPrice,
+                      "orderKey": key,
+                      customer
+                    }
+                    doTransactions(transaction).then(() => {
+                      response.status(200).send({ "message" : "Sending to payment system transaction", transaction });
+                      return;
+                    });
+                  }
+                }, err => {
+                  console.log(err);
+                  response.status(202).send(error);
+                  return
                 });
               }
-            }, err => {
-              console.log(err);
-              response.status(202).send(error);
-              return
-            });
-
+            })
           } else {
             console.log("invalid gifts");
             response.status(202).send(error);
@@ -141,6 +148,13 @@ function checkTime() {
 function isEmpty(obj) {
   return Object.keys(obj).length === 0 && obj.constructor === Object
 }
+
+function checkUserMeteors(userId, meteors) {
+  return dbRef.child("users").child(userId).child("meteors").once('value').then( (snapshot) => {
+    return snapshot.val() - meteors >= 0;
+  });
+}
+
 function compareObjects(o1, o2) {
   return equal(o1, o2)
 }
